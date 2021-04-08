@@ -9,7 +9,7 @@ module.exports = merge(common, {
         // 启动gzip 压缩
         compress: true,
         // 端口号
-        port: 8080,
+        port: 3555,
         open: true,
         hot: true,
     },
