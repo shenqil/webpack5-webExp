@@ -45,6 +45,6 @@ module.exports = {
   },
   resolve: {
     // 配置省略文件路径的后缀名
-    extensions: ['.tsx', '.ts', '.js'],
+    extensions: ['.tsx', '.ts', '.js','.jsx'],
   },
 };
