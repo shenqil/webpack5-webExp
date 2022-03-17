@@ -1,131 +1,99 @@
-# webpack5 使用 postcss
+# Loader 初体验
 
-## 1.克隆一份 [webpack5 创建前端代码](https://links.jianshu.com/go?to=https%3A%2F%2Fgithub.com%2FfssqLove%2Fwebpack5-webExp)
-
-## 2.安装 postcss-loader postcss-preset-env
-
-- postcss-loader 作为`webpack` loader 放在 `css-loader`前面用来处理 css
-- postcss-preset-env 是 `postcss-loader`的插件
+## 1.创建一个loader,用于把`.txt`文件内容中的`[name]`,替换
 
 ```
-npm i  postcss-loader postcss-preset-env -D
-```
+// loader\index.js
 
-## 3.新建 `postcss.conﬁg.js` 用来配置 postcss-loader
+export default function loader(source) {
+  const options = this.getOptions();
 
-```
-module.exports = {
-    plugins: [
-        require('postcss-preset-env')
-    ]
+  // eslint-disable-next-line no-param-reassign
+  source = source.replace(/\[name\]/g, options.name);
+
+  return `export default ${JSON.stringify(source)}`;
 }
 ```
 
-## 4.安装`cross-env` 用来设置 node 环境变量
++ source是传入的文件内容
+
+***
+
+## 2.创建一个用于测试的文件
 
 ```
-npm i cross-env -D
+// test\example.txt
+Hey [name]!
 ```
 
-## 5.配置 webpack 使用 `postcss-loader`
+***
+
+## 3.使用webpack结合loader,编译`.txt`测试文件
+
++ `npm install --save-dev memfs` 将compiler的结果放在内存中，用于测试
 
 ```
-// webpack.prod.js
+// test\compiler.js
 
-    module: {
-        rules: [
-            {
-                test: /\.((c|sa|sc)ss)$/i,
-                use: [
-                    {
-                        loader: MiniCssExtractPlugin.loader,
-                        options: {
-                            publicPath: '../../',
-                        },
-                    },
-                    // 将css文件变成commonjs模块加载js中，里面内容是样式字符串
-                    {
-                        loader: 'css-loader',
-                        options: {
-                            importLoaders: 2,
-                        }
-                    },
-                    'postcss-loader',
-                    'sass-loader'
-                ],
-            },
-        ]
+import path from 'path';
+import webpack from 'webpack';
+import { createFsFromVolume, Volume } from 'memfs';
+
+export default (fixture, options = {}) => {
+  const compiler = webpack({
+    context: __dirname,
+    entry: `./${fixture}`,
+    output: {
+      path: path.resolve(__dirname),
+      filename: 'bundle.js',
     },
+    module: {
+      rules: [
+        {
+          test: /\.txt$/,
+          use: {
+            loader: path.resolve(__dirname, '../loader/index.js'),
+            options,
+          },
+        },
+      ],
+    },
+  });
+
+  compiler.outputFileSystem = createFsFromVolume(new Volume());
+  compiler.outputFileSystem.join = path.join.bind(path);
+
+  return new Promise((resolve, reject) => {
+    compiler.run((err, stats) => {
+      if (err) reject(err);
+      if (stats.hasErrors()) reject(stats.toJson().errors);
+
+      resolve(stats);
+    });
+  });
+};
 ```
 
-## 6.修改 `index.scss` 增加一些 cs3 样式
+***
+
+## 4.使用`jest`编译测试文件验证编译结果
+
++ `npm install --save-dev jest babel-jest @babel/core @babel/preset-env`
 
 ```
-// src\assets\css\index.scss
+// test\loader.test.js
+import compiler from './compiler.js';
 
+// eslint-disable-next-line no-undef
+test('Inserts name and outputs JavaScript', async () => {
+  const stats = await compiler('example.txt', { name: 'Alice' });
+  const output = stats.toJson({ source: true }).modules[0].source;
 
-html,
-body {
-  color: lch(53 105 40);
-  display: flex;
-  backface-visibility: hidden;
-}
-
-:fullscreen {
-  width: auto;
-}
+  console.log(output, stats.toJson());
+  // eslint-disable-next-line no-undef
+  expect(output).toBe('export default "Hey Alice!\\n"');
+});
 ```
 
-## 7.修改 `package.json` 告诉 `postcss 打包规则`
-
-```
-  "scripts": {
-    "build": "cross-env NODE_ENV=production webpack --config webpack.prod.js"
-  },
-  "browserslist": {
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ],
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ]
-  }
-```
-
-- `cross-env NODE_ENV=production` 设置 node 环境变量 为 `production`
-- `browserslist` 里分别设置 `development`和`production`里面需要支持的浏览器
-
-## 8. 执行`npm run build`
-
-```
-html,
-body {
-  color: rgb(250, 0, 4);
-  display: flex;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-}
-:-webkit-full-screen {
-  width: auto;
-}
-:-ms-fullscreen {
-  width: auto;
-}
-:fullscreen {
-  width: auto;
-}
-```
-
-- ` color: lch(53 105 40);`被处理成 ` color: rgb(250, 0, 4);`
-- `backface-visibility: hidden;` 会加上前缀
-- `:fullscreen ` 也会做处理
-
-## 9.问题
-
-- **display: flex;** 没有处理为`display: -webkit-flex;`
-
-[源码](https://github.com/fssqLove/webpack5-webExp/tree/postcss)
+***
+[源码](https://github.com/shenqil/webpack5-webExp/tree/loader)
